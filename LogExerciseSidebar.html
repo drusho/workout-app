@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <base target="_top" />
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+    integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous" />
+  <style>
+    body {
+      padding: 15px;
+    }
+
+    .form-group {
+      margin-bottom: 10px;
+    }
+
+    .btn {
+      margin-top: 15px;
+    }
+
+    #status {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+
+    #workoutDisplay {
+      margin-top: 20px;
+      margin-bottom: 20px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+    }
+
+    #workoutDisplay h5 {
+      margin-top: 0;
+    }
+
+    #workoutDisplay ul {
+      padding-left: 20px;
+      margin-bottom: 0;
+    }
+
+    #workoutDisplay li {
+      margin-bottom: 5px;
+    }
+
+    #loadingIndicator {
+      display: none;
+      color: #888;
+      margin-left: 5px;
+    }
+  </style>
+</head>
+
+<body>
+  <h4>Workout Helper</h4>
+
+  <div class="form-group">
+    <label for="workoutLetter">Select Workout to View & Log</label>
+    <select class="form-control" id="workoutLetter" name="workoutLetter" required onchange="loadAndDisplayWorkout()">
+      <option value="" disabled selected>Select workout...</option>
+      <option value="A">Workout A</option>
+      <option value="B">Workout B</option>
+      <option value="C">Workout C</option>
+    </select>
+    <span id="loadingIndicator">Loading...</span>
+  </div>
+
+  <div id="workoutDisplay">
+    <h5>Selected Workout Details:</h5>
+    <div id="workoutDetailsList">
+      <p><i>Select a workout letter above to see details.</i></p>
+    </div>
+  </div>
+
+  <hr />
+  <h5>Log Completed Exercise</h5>
+  <form id="logForm">
+    <div class="form-group">
+      <label for="exerciseName">Exercise</label>
+      <select class="form-control" id="exerciseName" name="exerciseName" required disabled>
+        <option value="" disabled selected>
+          Select workout letter first...
+        </option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="setsPerformed">Sets Performed</label>
+      <input type="number" class="form-control" id="setsPerformed" name="setsPerformed" required />
+    </div>
+
+    <div class="form-group">
+      <label for="repsPerformed">Reps Performed (Target/Last Set)</label>
+      <input type="number" class="form-control" id="repsPerformed" name="repsPerformed" required />
+    </div>
+
+    <div class="form-group">
+      <label for="weightUsed">Weight Used (lbs)</label>
+      <input type="number" step="any" class="form-control" id="weightUsed" name="weightUsed" required />
+    </div>
+
+    <div class="form-group">
+      <label for="rpe">RPE Recorded (1-10)</label>
+      <input type="number" min="1" max="10" class="form-control" id="rpe" name="rpe" required />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Log Exercise</button>
+  </form>
+  <hr />
+  <div id="sessionLogDisplay">
+    <h5>Session Log:</h5>
+    <ul id="sessionLogList">
+      <li><i>No exercises logged yet in this session.</i></li>
+    </ul>
+  </div>
+
+  <div id="status"></div>
+
+  <script>
+    const workoutLetterSelect = document.getElementById("workoutLetter");
+    const exerciseSelect = document.getElementById("exerciseName");
+    const loadingIndicator = document.getElementById("loadingIndicator");
+    const statusDiv = document.getElementById("status");
+    const logForm = document.getElementById("logForm");
+    const workoutDetailsListDiv =
+      document.getElementById("workoutDetailsList");
+    let currentWorkoutDetails = [];
+    let sessionLog = [];
+
+    function clearFormFields() {
+      console.log("clearFormFields called"); // Added log for confirmation
+      document.getElementById("setsPerformed").value = "";
+      document.getElementById("repsPerformed").value = "";
+      document.getElementById("weightUsed").value = "";
+      document.getElementById("rpe").value = ""; // Also clear RPE
+    }
+
+    function updateSessionLogDisplay() {
+      console.log("updateSessionLogDisplay called"); // Added log for confirmation
+      const listElement = document.getElementById("sessionLogList"); // Ensure your <ul> has id="sessionLogList"
+      listElement.innerHTML = ""; // Clear existing list
+
+      if (sessionLog.length === 0) {
+        // Create a placeholder item if the log is empty
+        const placeholderItem = document.createElement("li");
+        placeholderItem.innerHTML =
+          "<i>No exercises logged yet in this session.</i>";
+        listElement.appendChild(placeholderItem);
+      } else {
+        sessionLog.forEach((item) => {
+          const listItem = document.createElement("li");
+          // Basic escaping for display (ensure item properties exist)
+          let name = item.name || "[No Name]";
+          let sets = item.sets !== undefined ? item.sets : "-";
+          let reps = item.reps !== undefined ? item.reps : "-";
+          let weight = item.weight !== undefined ? item.weight : "-";
+          let rpe = item.rpe !== undefined ? item.rpe : "-";
+
+          let escapedName = name
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+          listItem.textContent = `${escapedName}: ${sets} sets x ${reps} reps @ ${weight} lbs, RPE ${rpe}`;
+          listElement.appendChild(listItem);
+        });
+      }
+    }
+
+    function loadAndDisplayWorkout() {
+      console.log("loadAndDisplayWorkout: Function started."); // <<< ADD
+      const selectedLetter = workoutLetterSelect.value;
+
+      // Clear previous state and show loading
+      console.log("loadAndDisplayWorkout: Clearing previous state."); // <<< ADD
+      exerciseSelect.innerHTML =
+        '<option value="" disabled selected>Loading...</option>';
+      exerciseSelect.disabled = true;
+      workoutDetailsListDiv.innerHTML = "<p><i>Loading details...</i></p>";
+      loadingIndicator.style.display = "inline";
+      statusDiv.textContent = "";
+      clearFormFields();
+      sessionLog = [];
+      updateSessionLogDisplay();
+
+      if (!selectedLetter) {
+        console.log("loadAndDisplayWorkout: No letter selected, exiting."); // <<< ADD
+        exerciseSelect.innerHTML =
+          '<option value="" disabled selected>Select workout letter first...</option>';
+        workoutDetailsListDiv.innerHTML =
+          "<p><i>Select a workout letter above to see details.</i></p>";
+        loadingIndicator.style.display = "none";
+        return;
+      }
+
+      console.log(
+        "loadAndDisplayWorkout: Calling server function getWorkoutDetails for letter: " +
+        selectedLetter
+      ); // <<< ADD
+      // Call server-side function to get details
+      google.script.run
+        .withSuccessHandler(handleWorkoutDataSuccess)
+        .withFailureHandler(handleLoadFailure)
+        .getWorkoutDetails(selectedLetter);
+      console.log("loadAndDisplayWorkout: Server call initiated."); // <<< ADD
+    }
+
+    // Populate display AND dropdown on successful fetch
+    function handleWorkoutDataSuccess(workoutData) {
+      console.log("handleWorkoutDataSuccess: Function started."); // <<< ADD
+      console.log("handleWorkoutDataSuccess: Received data:", workoutData); // <<< ADD VIEW RECEIVED DATA
+
+      // workoutData is expected to be an array of objects:
+      // [{ name: "Ex1", sets: 2, reps: 5, weight: 100 }, { ... }]
+      currentWorkoutDetails = []; // Reset
+      exerciseSelect.innerHTML = "";
+      workoutDetailsListDiv.innerHTML = "";
+
+      if (
+        workoutData &&
+        Array.isArray(workoutData) &&
+        workoutData.length > 0
+      ) {
+        // <<< Added Array.isArray check
+        console.log(
+          "handleWorkoutDataSuccess: Data received is valid array."
+        ); // <<< ADD
+        currentWorkoutDetails = workoutData; // Store the fetched data
+
+        exerciseSelect.add(new Option("Select exercise...", "", true, true));
+        let displayHtml = "<ul>";
+        workoutData.forEach((exercise) => {
+          // Basic safety check for properties
+          let name = exercise.name || "[No Name]";
+          let sets = exercise.sets !== undefined ? exercise.sets : "-";
+          let reps = exercise.reps !== undefined ? exercise.reps : "-";
+          let weight = exercise.weight !== undefined ? exercise.weight : "-";
+
+          let escapedName = name
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+          exerciseSelect.add(new Option(escapedName, escapedName));
+          displayHtml += `<li>${escapedName}: ${sets} sets x ${reps} reps @ ${weight} lbs</li>`;
+        });
+        displayHtml += "</ul>";
+        workoutDetailsListDiv.innerHTML = displayHtml;
+        exerciseSelect.disabled = false;
+        console.log(
+          "handleWorkoutDataSuccess: Populated display and dropdown."
+        ); // <<< ADD
+      } else {
+        console.warn(
+          "handleWorkoutDataSuccess: Received no data or invalid data format."
+        ); // <<< ADD Warning
+        exerciseSelect.innerHTML =
+          '<option value="" disabled selected>No exercises found</option>';
+        workoutDetailsListDiv.innerHTML =
+          "<p><i>No exercises found for this workout letter.</i></p>";
+      }
+      loadingIndicator.style.display = "none";
+      console.log("handleWorkoutDataSuccess: Function finished."); // <<< ADD
+    }
+
+    // Handle failure during loading
+    function handleLoadFailure(error) {
+      console.error("handleLoadFailure: Function started."); // <<< ADD Error log
+      console.error("handleLoadFailure: Received error:", error); // <<< ADD VIEW ERROR OBJECT
+      exerciseSelect.innerHTML =
+        '<option value="" disabled selected>Error loading</option>';
+      workoutDetailsListDiv.innerHTML = `<p><i>Error loading workout details. Check console (F12).</i></p>`; // Update message
+      loadingIndicator.style.display = "none";
+      statusDiv.textContent = "Error loading workout data: " + error.message;
+      console.error("handleLoadFailure: Function finished."); // <<< ADD
+    }
+
+    // Function to handle form submission (remains the same)
+    function handleFormSubmit(event) {
+      event.preventDefault();
+      statusDiv.textContent = "Submitting...";
+
+      const formData = {
+        workoutLetter: workoutLetterSelect.value,
+        exerciseName: exerciseSelect.value,
+        setsPerformed: document.getElementById("setsPerformed").value,
+        repsPerformed: document.getElementById("repsPerformed").value,
+        weightUsed: document.getElementById("weightUsed").value,
+        rpe: document.getElementById("rpe").value,
+      };
+
+      google.script.run
+        .withSuccessHandler(handleSubmitSuccess)
+        .withFailureHandler(handleSubmitFailure)
+        .processLogForm(formData);
+    }
+
+    // Success handler needs to potentially refresh the displayed workout
+    // if progression changed the values for the currently selected workout
+    function handleSubmitSuccess(result) {
+      // Use result.message to display the success text
+      statusDiv.textContent =
+        result.message || "Exercise logged successfully!";
+
+      // Add logged data to our session log array using result.loggedData
+      if (result.loggedData) {
+        // <<< Now using the correct variable 'result'
+        sessionLog.push(result.loggedData);
+        updateSessionLogDisplay(); // Update the session log display on the page
+      }
+
+      logForm.reset(); // Reset form fields
+
+      // Reload workout data to show potential progression updates in display/prefill
+      if (workoutLetterSelect.value) {
+        loadAndDisplayWorkout();
+      } else {
+        // Reset dropdowns if no letter was selected (shouldn't happen normally)
+        exerciseSelect.innerHTML =
+          '<option value="" disabled selected>Select workout letter first...</option>';
+        exerciseSelect.disabled = true;
+      }
+
+      setTimeout(() => {
+        statusDiv.textContent = "";
+      }, 5000); // Clear status later
+    }
+
+    // Failure handler remains similar
+    function handleSubmitFailure(error) {
+      statusDiv.textContent = "Error: " + error.message;
+    }
+
+    // Add form submit listener
+    logForm.addEventListener("submit", handleFormSubmit);
+  </script>
+</body>
+
+</html>
