@@ -5,6 +5,9 @@
   <base target="_top" />
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
     integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous" />
+
+  <link rel="icon" type="image/png"
+    href="https://github.com/drusho/workout-app/blob/main/images/barbell.png?raw=true" />
   <style>
     body {
       padding: 15px;
@@ -54,7 +57,7 @@
 </head>
 
 <body>
-  <h4>Workout Helper</h4>
+  <h4>Workout Logger</h4>
 
   <div class="form-group">
     <label for="workoutLetter">Select Workout to View & Log</label>
@@ -79,7 +82,8 @@
   <form id="logForm">
     <div class="form-group">
       <label for="exerciseName">Exercise</label>
-      <select class="form-control" id="exerciseName" name="exerciseName" required disabled>
+      <select class="form-control" id="exerciseName" name="exerciseName" required disabled
+        onchange="prefillFormFields()">
         <option value="" disabled selected>
           Select workout letter first...
         </option>
@@ -88,12 +92,18 @@
 
     <div class="form-group">
       <label for="setsPerformed">Sets Performed</label>
-      <input type="number" class="form-control" id="setsPerformed" name="setsPerformed" required />
+      <select class="form-control" id="setsPerformed" name="setsPerformed" required>
+        <option value="" disabled selected>Select sets...</option>
+
+      </select>
     </div>
 
     <div class="form-group">
       <label for="repsPerformed">Reps Performed (Target/Last Set)</label>
-      <input type="number" class="form-control" id="repsPerformed" name="repsPerformed" required />
+      <select class="form-control" id="repsPerformed" name="repsPerformed" required>
+        <option value="" disabled selected>Select reps...</option>
+
+      </select>
     </div>
 
     <div class="form-group">
@@ -102,8 +112,11 @@
     </div>
 
     <div class="form-group">
-      <label for="rpe">RPE Recorded (1-10)</label>
-      <input type="number" min="1" max="10" class="form-control" id="rpe" name="rpe" required />
+      <label for="rpe">RPE (Reps Per Exertion) (0-10)</label>
+      <select class="form-control" id="rpe" name="rpe" required>
+        <option value="" disabled selected>Select RPE...</option>
+
+      </select>
     </div>
 
     <button type="submit" class="btn btn-primary">Log Exercise</button>
@@ -126,8 +139,10 @@
     const logForm = document.getElementById("logForm");
     const workoutDetailsListDiv =
       document.getElementById("workoutDetailsList");
-    let currentWorkoutDetails = [];
-    let sessionLog = [];
+    const appState = {
+      currentWorkoutDetails: [],
+      sessionLog: []
+    };
 
     function clearFormFields() {
       console.log("clearFormFields called"); // Added log for confirmation
@@ -142,14 +157,14 @@
       const listElement = document.getElementById("sessionLogList"); // Ensure your <ul> has id="sessionLogList"
       listElement.innerHTML = ""; // Clear existing list
 
-      if (sessionLog.length === 0) {
+      if (appState.sessionLog.length === 0) {
         // Create a placeholder item if the log is empty
         const placeholderItem = document.createElement("li");
         placeholderItem.innerHTML =
           "<i>No exercises logged yet in this session.</i>";
         listElement.appendChild(placeholderItem);
       } else {
-        sessionLog.forEach((item) => {
+        appState.sessionLog.forEach((item) => {
           const listItem = document.createElement("li");
           // Basic escaping for display (ensure item properties exist)
           let name = item.name || "[No Name]";
@@ -169,6 +184,56 @@
       }
     }
 
+    function prefillFormFields() {
+      console.log("prefillFormFields called."); // Keep console logs for debugging
+      const selectedExerciseName = exerciseSelect.value; // exerciseSelect should be defined globally
+
+      // Get the input fields
+      const setsInput = document.getElementById('setsPerformed');
+      const repsInput = document.getElementById('repsPerformed');
+      const weightInput = document.getElementById('weightUsed');
+
+      // Clear existing values and placeholder
+      setsInput.value = '';
+      repsInput.value = '';
+      weightInput.value = '';
+      repsInput.placeholder = ''; // Clear placeholder
+
+      if (selectedExerciseName && appState.currentWorkoutDetails.length > 0) {
+        // Find the data for the selected exercise
+        const exerciseData = appState.currentWorkoutDetails.find(ex => ex.name === selectedExerciseName);
+
+        if (exerciseData) {
+          console.log("prefillFormFields: Found data for", selectedExerciseName, exerciseData);
+          // Prefill Sets and Weight
+          setsInput.value = exerciseData.sets || '';
+          weightInput.value = exerciseData.weight || '';
+
+          // Handle Reps, specifically checking for "AMRAP"
+          if (exerciseData.reps && typeof exerciseData.reps === 'string' && exerciseData.reps.toUpperCase() === 'AMRAP') {
+            repsInput.value = ''; // Leave numeric input blank for AMRAP
+            repsInput.placeholder = 'AMRAP'; // Set placeholder text
+            console.log("prefillFormFields: Setting reps placeholder to AMRAP.");
+          } else {
+            repsInput.value = exerciseData.reps || ''; // Prefill numeric reps
+            repsInput.placeholder = ''; // Ensure placeholder is clear
+            console.log("prefillFormFields: Setting reps value to", exerciseData.reps);
+          }
+        } else {
+          console.log("prefillFormFields: No data found for", selectedExerciseName);
+        }
+      } else {
+        console.log("prefillFormFields: No exercise selected or no workout details loaded.");
+      }
+    }
+
+    function toggleLoading(isLoading) {
+      loadingIndicator.style.display = isLoading ? "inline" : "none";
+      logForm.querySelectorAll("input, select, button").forEach(el => {
+        el.disabled = isLoading;
+      });
+    }
+
     function loadAndDisplayWorkout() {
       console.log("loadAndDisplayWorkout: Function started."); // <<< ADD
       const selectedLetter = workoutLetterSelect.value;
@@ -182,7 +247,7 @@
       loadingIndicator.style.display = "inline";
       statusDiv.textContent = "";
       clearFormFields();
-      sessionLog = [];
+      appState.sessionLog = [];
       updateSessionLogDisplay();
 
       if (!selectedLetter) {
@@ -214,7 +279,7 @@
 
       // workoutData is expected to be an array of objects:
       // [{ name: "Ex1", sets: 2, reps: 5, weight: 100 }, { ... }]
-      currentWorkoutDetails = []; // Reset
+      appState.currentWorkoutDetails = []; // Reset
       exerciseSelect.innerHTML = "";
       workoutDetailsListDiv.innerHTML = "";
 
@@ -227,7 +292,7 @@
         console.log(
           "handleWorkoutDataSuccess: Data received is valid array."
         ); // <<< ADD
-        currentWorkoutDetails = workoutData; // Store the fetched data
+        appState.currentWorkoutDetails = workoutData; // Store the fetched data
 
         exerciseSelect.add(new Option("Select exercise...", "", true, true));
         let displayHtml = "<ul>";
@@ -279,6 +344,7 @@
 
     // Function to handle form submission (remains the same)
     function handleFormSubmit(event) {
+      console.log("handleFormSubmit: Function Started!");
       event.preventDefault();
       statusDiv.textContent = "Submitting...";
 
@@ -290,34 +356,61 @@
         weightUsed: document.getElementById("weightUsed").value,
         rpe: document.getElementById("rpe").value,
       };
-
+      console.log("handleFormSubmit: Calling google.script.run.processLogForm with data:", formData);
       google.script.run
         .withSuccessHandler(handleSubmitSuccess)
         .withFailureHandler(handleSubmitFailure)
         .processLogForm(formData);
+
+      console.log("handleFormSubmit: google.script.run call initiated.");
     }
 
     // Success handler needs to potentially refresh the displayed workout
     // if progression changed the values for the currently selected workout
     function handleSubmitSuccess(result) {
+      console.log("handleSubmitSuccess: Function started."); // <<< ADD
+      console.log(
+        "handleSubmitSuccess: Received result from server:",
+        result
+      );
       // Use result.message to display the success text
-      statusDiv.textContent =
-        result.message || "Exercise logged successfully!";
+      if (result && result.message) {
+        statusDiv.textContent = result.message;
+      } else {
+        console.warn(
+          "handleSubmitSuccess: Received result object did not contain expected message property."
+        );
+        statusDiv.textContent = "Exercise logged (message unclear).";
+      }
 
       // Add logged data to our session log array using result.loggedData
-      if (result.loggedData) {
-        // <<< Now using the correct variable 'result'
-        sessionLog.push(result.loggedData);
+      if (result && result.loggedData) {
+        console.log(
+          "handleSubmitSuccess: Found loggedData, attempting to push:",
+          result.loggedData
+        );
+        appState.sessionLog.push(result.loggedData);
+        console.log(
+          "handleSubmitSuccess: sessionLog content after push:",
+          appState.sessionLog
+        );
+        // *** THIS CALL IS CORRECT ***
         updateSessionLogDisplay(); // Update the session log display on the page
+      } else {
+        console.warn(
+          "handleSubmitSuccess: result.loggedData was missing or undefined in server response."
+        );
       }
 
       logForm.reset(); // Reset form fields
 
       // Reload workout data to show potential progression updates in display/prefill
       if (workoutLetterSelect.value) {
-        loadAndDisplayWorkout();
+        console.log(
+          "handleSubmitSuccess: Updating workout data display is needed here IF progression happened."
+        ); // Placeholder comment
+        // loadAndDisplayWorkout(); // <<< COMMENT OUT OR REMOVE THIS LINE! It reloads everything and clears session log.
       } else {
-        // Reset dropdowns if no letter was selected (shouldn't happen normally)
         exerciseSelect.innerHTML =
           '<option value="" disabled selected>Select workout letter first...</option>';
         exerciseSelect.disabled = true;
@@ -326,15 +419,54 @@
       setTimeout(() => {
         statusDiv.textContent = "";
       }, 5000); // Clear status later
+      console.log("handleSubmitSuccess: Function finished."); // <<< ADD
     }
 
     // Failure handler remains similar
     function handleSubmitFailure(error) {
+      console.error("handleSubmitFailure: Function started."); // <<< ADD
+      console.error("handleSubmitFailure: Received error:", error);
       statusDiv.textContent = "Error: " + error.message;
     }
 
     // Add form submit listener
     logForm.addEventListener("submit", handleFormSubmit);
+    console.log(
+      "Script execution reached end. Attempting to attach listener."
+    );
+
+    if (logForm) {
+      // Check if the form element was actually found
+      console.log("Attaching submit listener to logForm..."); // <<< ADD
+      logForm.addEventListener("submit", handleFormSubmit);
+      console.log("Submit listener attached to logForm."); // <<< ADD
+    } else {
+      console.error(
+        "CRITICAL: Could not find element with id='logForm'. Submit listener NOT attached."
+      ); // <<< ADD Error log
+    }
+
+    /**
+     * Populates the dropdown with options from 0 to the specified range.
+     * @param {string} id - The ID of the dropdown element.
+     * @param {number} range - The maximum value for the dropdown options.
+     */
+    function populateDropdown(id, range) {
+      const dropdown = document.getElementById(id);
+      for (let i = 0; i <= range; i++) {
+        const option = document.createElement("option");
+        option.value = i;
+        option.textContent = i;
+        dropdown.appendChild(option);
+      }
+    }
+
+    // Populate dropdowns on page load
+    document.addEventListener("DOMContentLoaded", () => {
+      populateDropdown("setsPerformed", 5);
+      populateDropdown("repsPerformed", 25);
+      populateDropdown("rpe", 10);
+    });
   </script>
 </body>
 
