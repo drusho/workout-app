@@ -1,473 +1,886 @@
 <!DOCTYPE html>
 <html>
+  <head>
+    <base target="_top" />
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+      integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z"
+      crossorigin="anonymous"
+    />
 
-<head>
-  <base target="_top" />
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
-    integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous" />
-
-  <link rel="icon" type="image/png"
-    href="https://github.com/drusho/workout-app/blob/main/images/barbell.png?raw=true" />
-  <style>
-    body {
-      padding: 15px;
-    }
-
-    .form-group {
-      margin-bottom: 10px;
-    }
-
-    .btn {
-      margin-top: 15px;
-    }
-
-    #status {
-      margin-top: 15px;
-      font-weight: bold;
-    }
-
-    #workoutDisplay {
-      margin-top: 20px;
-      margin-bottom: 20px;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-      background-color: #f9f9f9;
-    }
-
-    #workoutDisplay h5 {
-      margin-top: 0;
-    }
-
-    #workoutDisplay ul {
-      padding-left: 20px;
-      margin-bottom: 0;
-    }
-
-    #workoutDisplay li {
-      margin-bottom: 5px;
-    }
-
-    #loadingIndicator {
-      display: none;
-      color: #888;
-      margin-left: 5px;
-    }
-  </style>
-</head>
-
-<body>
-  <h4>Workout Logger</h4>
-
-  <div class="form-group">
-    <label for="workoutLetter">Select Workout to View & Log</label>
-    <select class="form-control" id="workoutLetter" name="workoutLetter" required onchange="loadAndDisplayWorkout()">
-      <option value="" disabled selected>Select workout...</option>
-      <option value="A">Workout A</option>
-      <option value="B">Workout B</option>
-      <option value="C">Workout C</option>
-    </select>
-    <span id="loadingIndicator">Loading...</span>
-  </div>
-
-  <div id="workoutDisplay">
-    <h5>Selected Workout Details:</h5>
-    <div id="workoutDetailsList">
-      <p><i>Select a workout letter above to see details.</i></p>
-    </div>
-  </div>
-
-  <hr />
-  <h5>Log Completed Exercise</h5>
-  <form id="logForm">
-    <div class="form-group">
-      <label for="exerciseName">Exercise</label>
-      <select class="form-control" id="exerciseName" name="exerciseName" required disabled
-        onchange="prefillFormFields()">
-        <option value="" disabled selected>
-          Select workout letter first...
-        </option>
-      </select>
-    </div>
-
-    <div class="form-group">
-      <label for="setsPerformed">Sets Performed</label>
-      <select class="form-control" id="setsPerformed" name="setsPerformed" required>
-        <option value="" disabled selected>Select sets...</option>
-
-      </select>
-    </div>
-
-    <div class="form-group">
-      <label for="repsPerformed">Reps Performed (Target/Last Set)</label>
-      <select class="form-control" id="repsPerformed" name="repsPerformed" required>
-        <option value="" disabled selected>Select reps...</option>
-
-      </select>
-    </div>
-
-    <div class="form-group">
-      <label for="weightUsed">Weight Used (lbs)</label>
-      <input type="number" step="any" class="form-control" id="weightUsed" name="weightUsed" required />
-    </div>
-
-    <div class="form-group">
-      <label for="rpe">RPE (Reps Per Exertion) (0-10)</label>
-      <select class="form-control" id="rpe" name="rpe" required>
-        <option value="" disabled selected>Select RPE...</option>
-
-      </select>
-    </div>
-
-    <button type="submit" class="btn btn-primary">Log Exercise</button>
-  </form>
-  <hr />
-  <div id="sessionLogDisplay">
-    <h5>Session Log:</h5>
-    <ul id="sessionLogList">
-      <li><i>No exercises logged yet in this session.</i></li>
-    </ul>
-  </div>
-
-  <div id="status"></div>
-
-  <script>
-    const workoutLetterSelect = document.getElementById("workoutLetter");
-    const exerciseSelect = document.getElementById("exerciseName");
-    const loadingIndicator = document.getElementById("loadingIndicator");
-    const statusDiv = document.getElementById("status");
-    const logForm = document.getElementById("logForm");
-    const workoutDetailsListDiv =
-      document.getElementById("workoutDetailsList");
-    const appState = {
-      currentWorkoutDetails: [],
-      sessionLog: []
-    };
-
-    function clearFormFields() {
-      console.log("clearFormFields called"); // Added log for confirmation
-      document.getElementById("setsPerformed").value = "";
-      document.getElementById("repsPerformed").value = "";
-      document.getElementById("weightUsed").value = "";
-      document.getElementById("rpe").value = ""; // Also clear RPE
-    }
-
-    function updateSessionLogDisplay() {
-      console.log("updateSessionLogDisplay called"); // Added log for confirmation
-      const listElement = document.getElementById("sessionLogList"); // Ensure your <ul> has id="sessionLogList"
-      listElement.innerHTML = ""; // Clear existing list
-
-      if (appState.sessionLog.length === 0) {
-        // Create a placeholder item if the log is empty
-        const placeholderItem = document.createElement("li");
-        placeholderItem.innerHTML =
-          "<i>No exercises logged yet in this session.</i>";
-        listElement.appendChild(placeholderItem);
-      } else {
-        appState.sessionLog.forEach((item) => {
-          const listItem = document.createElement("li");
-          // Basic escaping for display (ensure item properties exist)
-          let name = item.name || "[No Name]";
-          let sets = item.sets !== undefined ? item.sets : "-";
-          let reps = item.reps !== undefined ? item.reps : "-";
-          let weight = item.weight !== undefined ? item.weight : "-";
-          let rpe = item.rpe !== undefined ? item.rpe : "-";
-
-          let escapedName = name
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;");
-          listItem.textContent = `${escapedName}: ${sets} sets x ${reps} reps @ ${weight} lbs, RPE ${rpe}`;
-          listElement.appendChild(listItem);
-        });
+    <link
+      rel="icon"
+      type="image/png"
+      href="https://github.com/drusho/workout-app/blob/main/images/barbell.png?raw=true"
+    />
+    <style>
+      body {
+        padding: 15px;
       }
-    }
 
-    function prefillFormFields() {
-      console.log("prefillFormFields called."); // Keep console logs for debugging
-      const selectedExerciseName = exerciseSelect.value; // exerciseSelect should be defined globally
+      .app-header {
+        display: flex;
+        align-items: center;
+        /* This is key for vertical alignment */
+        margin-bottom: 20px;
+      }
 
-      // Get the input fields
-      const setsInput = document.getElementById('setsPerformed');
-      const repsInput = document.getElementById('repsPerformed');
-      const weightInput = document.getElementById('weightUsed');
+      .header-icon {
+        height: 2.25rem;
+        /* Try this first (e.g., 20px if 1rem = 16px) */
+        width: 2.25rem;
+        /* Assumes a square icon. If not, set only height and width: auto; */
+        /*
+    Alternatively, if your icon is not square and you want to scale by height:
+    height: 1.25rem;
+    width: auto;
+  */
+        margin-right: 0.2rem;
+        /* (e.g., 8px) Space between icon and text */
+      }
 
-      // Clear existing values and placeholder
-      setsInput.value = '';
-      repsInput.value = '';
-      weightInput.value = '';
-      repsInput.placeholder = ''; // Clear placeholder
+      .app-header h4 {
+        margin-top: 0;
+        margin-bottom: 0;
+        font-size: 1.75rem;
+        /* Your current h4 size */
+        /* line-height will also affect the visual space the text takes */
+      }
 
-      if (selectedExerciseName && appState.currentWorkoutDetails.length > 0) {
-        // Find the data for the selected exercise
-        const exerciseData = appState.currentWorkoutDetails.find(ex => ex.name === selectedExerciseName);
+      .form-group {
+        margin-bottom: 10px;
+      }
 
-        if (exerciseData) {
-          console.log("prefillFormFields: Found data for", selectedExerciseName, exerciseData);
-          // Prefill Sets and Weight
-          setsInput.value = exerciseData.sets || '';
-          weightInput.value = exerciseData.weight || '';
+      .btn {
+        margin-top: 15px;
+      }
 
-          // Handle Reps, specifically checking for "AMRAP"
-          if (exerciseData.reps && typeof exerciseData.reps === 'string' && exerciseData.reps.toUpperCase() === 'AMRAP') {
-            repsInput.value = ''; // Leave numeric input blank for AMRAP
-            repsInput.placeholder = 'AMRAP'; // Set placeholder text
-            console.log("prefillFormFields: Setting reps placeholder to AMRAP.");
+      #status {
+        margin-top: 15px;
+        font-weight: bold;
+      }
+
+      #workoutDisplay {
+        margin-top: 20px;
+        margin-bottom: 20px;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        background-color: #f9f9f9;
+      }
+
+      #workoutDisplay h5 {
+        margin-top: 0;
+      }
+
+      #workoutDisplay ul {
+        padding-left: 20px;
+        margin-bottom: 0;
+      }
+
+      #workoutDisplay li {
+        margin-bottom: 5px;
+      }
+
+      #loadingIndicator {
+        display: none;
+        color: #888;
+        margin-left: 5px;
+      }
+
+      button.buttons-customized {
+        --button-background: transparent;
+        --button-color: black;
+
+        background-color: var(--button-background);
+        border-radius: 4px;
+        border: 0;
+        box-shadow: none;
+        color: var(--button-color);
+        cursor: pointer;
+        display: inline-flex;
+        /* Keeps content (text span + arrow div) in a row */
+        align-items: center;
+        /* Vertically aligns items if they have different heights */
+
+        min-height: 50px;
+        /* Original height, acts as a minimum */
+        height: auto;
+        /* Allow button to grow taller if text wraps */
+
+        padding-left: 1rem;
+        /* Adjusted from 1.5rem for a bit more space savings */
+        /* padding-right will be handled by specific button types (with/without arrow) */
+
+        position: relative;
+        text-align: left;
+        /* Ensures text inside the span aligns left */
+        text-decoration: none;
+        transition: box-shadow 150ms cubic-bezier(0.61, 1, 0.88, 1);
+        white-space: normal;
+        overflow: hidden;
+        font-size: 0.9rem;
+        font-weight: 500;
+        line-height: 1.2;
+        max-width: 150px;
+      }
+
+      /* Adjust padding for buttons that have the arrow */
+      button.buttons-customized:not(.no-arrow) {
+        padding-right: 3rem;
+        /* Original was 3.5rem, can tweak */
+      }
+
+      /* Padding for buttons explicitly without an arrow */
+      button.buttons-customized.no-arrow {
+        padding-right: 1rem;
+        /* Original was 1.5rem */
+      }
+
+      /* Text span within the button */
+      button.buttons-customized > span {
+        display: block;
+        line-height: 1;
+        /* padding-right: 1.5rem; /* Removed as padding is on button now */
+      }
+
+      /* Background color classes */
+      button.buttons-customized.-bg-yellow {
+        --button-background: #ffb31c;
+        /* Yellow */
+        --button-color: black;
+      }
+
+      button.buttons-customized.-bg-green {
+        --button-background: #28a745;
+        /* Green (Bootstrap success green) */
+        --button-color: white;
+      }
+
+      /* Pacman Arrow CSS */
+      .arrowPacman {
+        --arrow-width: 14px;
+        /* Matched to SVG width */
+        --arrow-spacer: 4px;
+        --arrow-plus-spacer: calc(var(--arrow-width) + var(--arrow-spacer));
+
+        position: absolute;
+        right: 1em;
+        /* Adjusted for better positioning */
+        top: 50%;
+        transform: translateY(-50%);
+        width: var(--arrow-plus-spacer);
+        height: 14px;
+        /* Match SVG height */
+        overflow: hidden;
+      }
+
+      .arrowPacman svg {
+        height: 14px;
+        /* Explicitly set */
+        width: 14px;
+        /* Explicitly set */
+      }
+
+      .arrowPacman svg:last-of-type {
+        margin-left: var(--arrow-spacer);
+      }
+
+      .arrowPacman-clip {
+        align-items: center;
+        display: flex;
+        overflow: hidden;
+        transform: translateX(calc(var(--arrow-plus-spacer) * -1));
+        width: calc(var(--arrow-plus-spacer) + var(--arrow-width));
+      }
+
+      @keyframes pacman {
+        to {
+          transform: translateX(0);
+        }
+      }
+
+      /* Apply animation on hover/focus */
+      button.buttons-customized:hover .arrowPacman-clip,
+      button.buttons-customized:focus .arrowPacman-clip {
+        animation-delay: 150ms;
+        animation-duration: 0.8s;
+        animation-name: pacman;
+        animation-iteration-count: infinite;
+        animation-timing-function: cubic-bezier(0.55, 0, 0.21, 1);
+      }
+
+      button.buttons-customized:hover,
+      button.buttons-customized:focus {
+        box-shadow: 0 3px 7px 1px rgba(50, 50, 50, 0.25);
+      }
+
+      /* Buttons Container */
+      .buttons {
+        display: flex;
+        flex-wrap: wrap;
+        /* Allow buttons to wrap on smaller screens */
+        gap: 10px;
+        /* Creates space between buttons */
+        margin-top: 20px;
+        /* Space above the button group */
+        margin-bottom: 10px;
+        /* Space below the button group */
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="app-header">
+      <img
+        src="https://raw.githubusercontent.com/drusho/workout-app/refs/heads/main/images/barbell.webp"
+        alt="Barbell Icon"
+        class="header-icon"
+      />
+      <h4>Rusho's Workout Logger</h4>
+    </div>
+
+    <div class="form-group row align-items-center">
+      <label for="workoutLetter" class="col-4 col-form-label"
+        >Select Workout</label
+      >
+      <div class="col-8">
+        <select
+          class="form-control"
+          id="workoutLetter"
+          name="workoutLetter"
+          required
+          onchange="loadAndDisplayWorkout()"
+        >
+          <option value="" disabled selected>Select workout...</option>
+          <option value="A">Workout A</option>
+          <option value="B">Workout B</option>
+          <option value="C">Workout C</option>
+        </select>
+        <span id="loadingIndicator">Loading...</span>
+      </div>
+    </div>
+
+    <div id="workoutDisplay">
+      <h5 id="selectedWorkoutHeader">Select a workout to view details</h5>
+      <div id="workoutDetailsList"></div>
+    </div>
+
+    <hr />
+    <h5>Log Exercise</h5>
+    <form id="logForm">
+      <div class="form-group row align-items-center">
+        <label for="exerciseName" class="col-4 col-form-label">Exercise:</label>
+        <div class="col-8">
+          <select
+            class="form-control form-control-sm"
+            id="exerciseName"
+            name="exerciseName"
+            required
+            disabled
+            onchange="prefillFormFields()"
+          >
+            <option value="" disabled selected>
+              Select workout letter first...
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group row align-items-center">
+        <label for="setsPerformed" class="col-4 col-form-label"
+          >Sets Performed:</label
+        >
+        <div class="col-8">
+          <select
+            class="form-control form-control-sm"
+            id="setsPerformed"
+            name="setsPerformed"
+            required
+          >
+            <option value="" disabled selected>Select sets...</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group row align-items-center">
+        <label for="repsPerformed" class="col-4 col-form-label"
+          >Reps Performed:</label
+        >
+        <div class="col-8 d-flex align-items-center">
+          <select
+            class="form-control form-control-sm"
+            id="repsPerformed"
+            name="repsPerformed"
+            required
+          >
+            <option value="" disabled selected>Select reps...</option>
+          </select>
+          <small
+            id="amrapIndicator"
+            style="
+              display: none;
+              color: #555;
+              margin-left: 5px;
+              white-space: nowrap;
+            "
+            ><em>(AMRAP)</em></small
+          >
+        </div>
+      </div>
+
+      <div class="form-group row align-items-center">
+        <label for="weightUsed" class="col-4 col-form-label"
+          >Weight (lbs):</label
+        >
+        <div class="col-8">
+          <input
+            type="number"
+            step="any"
+            class="form-control form-control-sm"
+            id="weightUsed"
+            name="weightUsed"
+            required
+          />
+        </div>
+      </div>
+
+      <div class="form-group row align-items-center">
+        <label for="rpe" class="col-4 col-form-label">RPE (0-10):</label>
+        <div class="col-8">
+          <select
+            class="form-control form-control-sm"
+            id="rpe"
+            name="rpe"
+            required
+          >
+            <option value="" disabled selected>Select RPE...</option>
+          </select>
+        </div>
+      </div>
+    </form>
+    <div class="buttons">
+      <button type="submit" class="buttons-customized -bg-green" form="logForm">
+        <span>Log<br />Exercise</span>
+        <div class="arrowPacman">
+          <div class="arrowPacman-clip">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M7.10081 0L5.88245 1.23617L10.7016 6.12576H0V7.87423H10.7016L5.88245 12.7638L7.10081 14L14 7L7.10081 0Z"
+                fill="white"
+              />
+            </svg>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M7.10081 0L5.88245 1.23617L10.7016 6.12576H0V7.87423H10.7016L5.88245 12.7638L7.10081 14L14 7L7.10081 0Z"
+                fill="black"
+              />
+            </svg>
+          </div>
+        </div>
+      </button>
+
+      <button
+        type="button"
+        id="updateBaseBtn"
+        class="buttons-customized -bg-yellow no-arrow"
+        onclick="showBaseWeightUpdatePrompt()"
+        disabled
+      >
+        <span>Update<br />Weight</span>
+      </button>
+    </div>
+    <hr />
+    <div id="sessionLogDisplay">
+      <h5>Session Log:</h5>
+      <ul id="sessionLogList">
+        <li><i>No exercises logged yet in this session.</i></li>
+      </ul>
+    </div>
+
+    <div
+      id="baseWeightUpdateDialog"
+      style="
+        display: none;
+        border: 1px solid #ccc;
+        padding: 15px;
+        margin-top: 15px;
+        background-color: #f0f0f0;
+        border-radius: 5px;
+      "
+    >
+      <h5>Update Base Weight for: <span id="updateExerciseName"></span></h5>
+      <p>
+        Current Base Weight: <strong id="currentBaseWeightDisplay"></strong> lbs
+      </p>
+      <div class="form-group">
+        <label for="newBaseWeightInput">New Base Weight (lbs):</label>
+        <input
+          type="number"
+          step="any"
+          class="form-control"
+          id="newBaseWeightInput"
+          required
+        />
+      </div>
+      <input type="hidden" id="exerciseNameToUpdate" />
+      <button
+        type="button"
+        class="btn btn-primary btn-sm"
+        onclick="handleBaseWeightSave()"
+      >
+        Save New Base Weight
+      </button>
+      <button
+        type="button"
+        class="btn btn-secondary btn-sm"
+        onclick="handleBaseWeightCancel()"
+      >
+        Cancel
+      </button>
+      <div id="updateDialogStatus" style="margin-top: 5px; color: red"></div>
+    </div>
+    <div id="status"></div>
+
+    <script>
+      const workoutLetterSelect = document.getElementById("workoutLetter");
+      const exerciseSelect = document.getElementById("exerciseName");
+      const loadingIndicator = document.getElementById("loadingIndicator");
+      const statusDiv = document.getElementById("status");
+      const logForm = document.getElementById("logForm");
+      const workoutDetailsListDiv =
+        document.getElementById("workoutDetailsList");
+      const appState = {
+        currentWorkoutDetails: [],
+        sessionLog: [],
+      };
+
+      function clearFormFields() {
+        document.getElementById("setsPerformed").value = "";
+        document.getElementById("repsPerformed").value = "";
+        document.getElementById("weightUsed").value = "";
+        document.getElementById("rpe").value = "";
+        document.getElementById("amrapIndicator").style.display = "none"; 
+      }
+
+      function updateSessionLogDisplay() {
+        const listElement = document.getElementById("sessionLogList"); // Ensure your <ul> has id="sessionLogList"
+        listElement.innerHTML = ""; // Clear existing list
+
+        if (appState.sessionLog.length === 0) {
+          // Create a placeholder item if the log is empty
+          const placeholderItem = document.createElement("li");
+          placeholderItem.innerHTML =
+            "<i>No exercises logged yet in this session.</i>";
+          listElement.appendChild(placeholderItem);
+        } else {
+          appState.sessionLog.forEach((item) => {
+            const listItem = document.createElement("li");
+            // Basic escaping for display (ensure item properties exist)
+            let name = item.name || "[No Name]";
+            let sets = item.sets !== undefined ? item.sets : "-";
+            let reps = item.reps !== undefined ? item.reps : "-";
+            let weight = item.weight !== undefined ? item.weight : "-";
+            let rpe = item.rpe !== undefined ? item.rpe : "-";
+
+            let escapedName = name
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;");
+            listItem.textContent = `${escapedName}: ${sets} sets x ${reps} reps @ ${weight} lbs, RPE ${rpe}`;
+            listElement.appendChild(listItem);
+          });
+        }
+      }
+
+      // Inside the <script> tag in LogExerciseSidebar.html
+
+      function prefillFormFields() {
+        const updateBtn = document.getElementById("updateBaseBtn");
+        const selectedExerciseName = exerciseSelect.value;
+
+        const setsInput = document.getElementById("setsPerformed");
+        const repsInput = document.getElementById("repsPerformed"); // This is your <select> element
+        const weightInput = document.getElementById("weightUsed");
+        const amrapIndicator = document.getElementById("amrapIndicator"); // Get the new span
+
+        // Clear existing values and hide AMRAP indicator
+        setsInput.value = ""; // Resets select to its first option (placeholder)
+        repsInput.value = ""; // Resets select to its first option
+        weightInput.value = "";
+        amrapIndicator.style.display = "none"; // Hide indicator by default
+
+        if (selectedExerciseName && appState.currentWorkoutDetails.length > 0) {
+          updateBtn.disabled = false;
+          const exerciseData = appState.currentWorkoutDetails.find(
+            (ex) => ex.name === selectedExerciseName
+          );
+
+          if (exerciseData) {
+            setsInput.value =
+              exerciseData.sets !== undefined ? exerciseData.sets : ""; // Handle potential undefined
+            weightInput.value =
+              exerciseData.weight !== undefined ? exerciseData.weight : ""; // Handle potential undefined
+
+            if (
+              exerciseData.reps &&
+              typeof exerciseData.reps === "string" &&
+              exerciseData.reps.toUpperCase() === "AMRAP"
+            ) {
+              // For AMRAP, select the highest value in the dropdown
+              // Your populateDropdown("repsPerformed", 25) creates options from 0 to 25.
+              // So, the last option's value is the max.
+              if (repsInput.options.length > 1) {
+                // Ensure options are populated beyond placeholder
+                repsInput.value =
+                  repsInput.options[repsInput.options.length - 1].value;
+              } else {
+                repsInput.value = ""; // Fallback if options somehow not populated
+              }
+              amrapIndicator.style.display = "inline"; // Show AMRAP indicator
+            } else {
+              repsInput.value =
+                exerciseData.reps !== undefined ? exerciseData.reps : ""; // Prefill numeric reps
+              amrapIndicator.style.display = "none"; // Ensure indicator is hidden
+            }
           } else {
-            repsInput.value = exerciseData.reps || ''; // Prefill numeric reps
-            repsInput.placeholder = ''; // Ensure placeholder is clear
-            console.log("prefillFormFields: Setting reps value to", exerciseData.reps);
+            amrapIndicator.style.display = "none";
           }
         } else {
-          console.log("prefillFormFields: No data found for", selectedExerciseName);
+          updateBtn.disabled = true;
+          amrapIndicator.style.display = "none";
         }
-      } else {
-        console.log("prefillFormFields: No exercise selected or no workout details loaded.");
-      }
-    }
-
-    function toggleLoading(isLoading) {
-      loadingIndicator.style.display = isLoading ? "inline" : "none";
-      logForm.querySelectorAll("input, select, button").forEach(el => {
-        el.disabled = isLoading;
-      });
-    }
-
-    function loadAndDisplayWorkout() {
-      console.log("loadAndDisplayWorkout: Function started."); // <<< ADD
-      const selectedLetter = workoutLetterSelect.value;
-
-      // Clear previous state and show loading
-      console.log("loadAndDisplayWorkout: Clearing previous state."); // <<< ADD
-      exerciseSelect.innerHTML =
-        '<option value="" disabled selected>Loading...</option>';
-      exerciseSelect.disabled = true;
-      workoutDetailsListDiv.innerHTML = "<p><i>Loading details...</i></p>";
-      loadingIndicator.style.display = "inline";
-      statusDiv.textContent = "";
-      clearFormFields();
-      appState.sessionLog = [];
-      updateSessionLogDisplay();
-
-      if (!selectedLetter) {
-        console.log("loadAndDisplayWorkout: No letter selected, exiting."); // <<< ADD
-        exerciseSelect.innerHTML =
-          '<option value="" disabled selected>Select workout letter first...</option>';
-        workoutDetailsListDiv.innerHTML =
-          "<p><i>Select a workout letter above to see details.</i></p>";
-        loadingIndicator.style.display = "none";
-        return;
       }
 
-      console.log(
-        "loadAndDisplayWorkout: Calling server function getWorkoutDetails for letter: " +
-        selectedLetter
-      ); // <<< ADD
-      // Call server-side function to get details
-      google.script.run
-        .withSuccessHandler(handleWorkoutDataSuccess)
-        .withFailureHandler(handleLoadFailure)
-        .getWorkoutDetails(selectedLetter);
-      console.log("loadAndDisplayWorkout: Server call initiated."); // <<< ADD
-    }
-
-    // Populate display AND dropdown on successful fetch
-    function handleWorkoutDataSuccess(workoutData) {
-      console.log("handleWorkoutDataSuccess: Function started."); // <<< ADD
-      console.log("handleWorkoutDataSuccess: Received data:", workoutData); // <<< ADD VIEW RECEIVED DATA
-
-      // workoutData is expected to be an array of objects:
-      // [{ name: "Ex1", sets: 2, reps: 5, weight: 100 }, { ... }]
-      appState.currentWorkoutDetails = []; // Reset
-      exerciseSelect.innerHTML = "";
-      workoutDetailsListDiv.innerHTML = "";
-
-      if (
-        workoutData &&
-        Array.isArray(workoutData) &&
-        workoutData.length > 0
-      ) {
-        // <<< Added Array.isArray check
-        console.log(
-          "handleWorkoutDataSuccess: Data received is valid array."
-        ); // <<< ADD
-        appState.currentWorkoutDetails = workoutData; // Store the fetched data
-
-        exerciseSelect.add(new Option("Select exercise...", "", true, true));
-        let displayHtml = "<ul>";
-        workoutData.forEach((exercise) => {
-          // Basic safety check for properties
-          let name = exercise.name || "[No Name]";
-          let sets = exercise.sets !== undefined ? exercise.sets : "-";
-          let reps = exercise.reps !== undefined ? exercise.reps : "-";
-          let weight = exercise.weight !== undefined ? exercise.weight : "-";
-
-          let escapedName = name
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;");
-          exerciseSelect.add(new Option(escapedName, escapedName));
-          displayHtml += `<li>${escapedName}: ${sets} sets x ${reps} reps @ ${weight} lbs</li>`;
+      function toggleLoading(isLoading) {
+        loadingIndicator.style.display = isLoading ? "inline" : "none";
+        logForm.querySelectorAll("input, select, button").forEach((el) => {
+          el.disabled = isLoading;
         });
-        displayHtml += "</ul>";
-        workoutDetailsListDiv.innerHTML = displayHtml;
-        exerciseSelect.disabled = false;
-        console.log(
-          "handleWorkoutDataSuccess: Populated display and dropdown."
-        ); // <<< ADD
-      } else {
-        console.warn(
-          "handleWorkoutDataSuccess: Received no data or invalid data format."
-        ); // <<< ADD Warning
+      }
+
+      function loadAndDisplayWorkout() {
+        document.getElementById("updateBaseBtn").disabled = true;
+        const selectedLetter = workoutLetterSelect.value; // workoutLetterSelect is a global const
+
+        const selectedWorkoutHeaderElement = document.getElementById(
+          "selectedWorkoutHeader"
+        ); // Get the header element
+
+        // Clear previous state and show loading
         exerciseSelect.innerHTML =
-          '<option value="" disabled selected>No exercises found</option>';
-        workoutDetailsListDiv.innerHTML =
-          "<p><i>No exercises found for this workout letter.</i></p>";
-      }
-      loadingIndicator.style.display = "none";
-      console.log("handleWorkoutDataSuccess: Function finished."); // <<< ADD
-    }
-
-    // Handle failure during loading
-    function handleLoadFailure(error) {
-      console.error("handleLoadFailure: Function started."); // <<< ADD Error log
-      console.error("handleLoadFailure: Received error:", error); // <<< ADD VIEW ERROR OBJECT
-      exerciseSelect.innerHTML =
-        '<option value="" disabled selected>Error loading</option>';
-      workoutDetailsListDiv.innerHTML = `<p><i>Error loading workout details. Check console (F12).</i></p>`; // Update message
-      loadingIndicator.style.display = "none";
-      statusDiv.textContent = "Error loading workout data: " + error.message;
-      console.error("handleLoadFailure: Function finished."); // <<< ADD
-    }
-
-    // Function to handle form submission (remains the same)
-    function handleFormSubmit(event) {
-      console.log("handleFormSubmit: Function Started!");
-      event.preventDefault();
-      statusDiv.textContent = "Submitting...";
-
-      const formData = {
-        workoutLetter: workoutLetterSelect.value,
-        exerciseName: exerciseSelect.value,
-        setsPerformed: document.getElementById("setsPerformed").value,
-        repsPerformed: document.getElementById("repsPerformed").value,
-        weightUsed: document.getElementById("weightUsed").value,
-        rpe: document.getElementById("rpe").value,
-      };
-      console.log("handleFormSubmit: Calling google.script.run.processLogForm with data:", formData);
-      google.script.run
-        .withSuccessHandler(handleSubmitSuccess)
-        .withFailureHandler(handleSubmitFailure)
-        .processLogForm(formData);
-
-      console.log("handleFormSubmit: google.script.run call initiated.");
-    }
-
-    // Success handler needs to potentially refresh the displayed workout
-    // if progression changed the values for the currently selected workout
-    function handleSubmitSuccess(result) {
-      console.log("handleSubmitSuccess: Function started."); // <<< ADD
-      console.log(
-        "handleSubmitSuccess: Received result from server:",
-        result
-      );
-      // Use result.message to display the success text
-      if (result && result.message) {
-        statusDiv.textContent = result.message;
-      } else {
-        console.warn(
-          "handleSubmitSuccess: Received result object did not contain expected message property."
-        );
-        statusDiv.textContent = "Exercise logged (message unclear).";
-      }
-
-      // Add logged data to our session log array using result.loggedData
-      if (result && result.loggedData) {
-        console.log(
-          "handleSubmitSuccess: Found loggedData, attempting to push:",
-          result.loggedData
-        );
-        appState.sessionLog.push(result.loggedData);
-        console.log(
-          "handleSubmitSuccess: sessionLog content after push:",
-          appState.sessionLog
-        );
-        // *** THIS CALL IS CORRECT ***
-        updateSessionLogDisplay(); // Update the session log display on the page
-      } else {
-        console.warn(
-          "handleSubmitSuccess: result.loggedData was missing or undefined in server response."
-        );
-      }
-
-      logForm.reset(); // Reset form fields
-
-      // Reload workout data to show potential progression updates in display/prefill
-      if (workoutLetterSelect.value) {
-        console.log(
-          "handleSubmitSuccess: Updating workout data display is needed here IF progression happened."
-        ); // Placeholder comment
-        // loadAndDisplayWorkout(); // <<< COMMENT OUT OR REMOVE THIS LINE! It reloads everything and clears session log.
-      } else {
-        exerciseSelect.innerHTML =
-          '<option value="" disabled selected>Select workout letter first...</option>';
+          '<option value="" disabled selected>Loading...</option>';
         exerciseSelect.disabled = true;
-      }
-
-      setTimeout(() => {
+        workoutDetailsListDiv.innerHTML = "<p><i>Loading details...</i></p>"; // List area shows loading
+        loadingIndicator.style.display = "inline";
         statusDiv.textContent = "";
-      }, 5000); // Clear status later
-      console.log("handleSubmitSuccess: Function finished."); // <<< ADD
-    }
+        clearFormFields();
+        appState.sessionLog = [];
+        updateSessionLogDisplay();
 
-    // Failure handler remains similar
-    function handleSubmitFailure(error) {
-      console.error("handleSubmitFailure: Function started."); // <<< ADD
-      console.error("handleSubmitFailure: Received error:", error);
-      statusDiv.textContent = "Error: " + error.message;
-    }
+        if (!selectedLetter) {
+          if (selectedWorkoutHeaderElement) {
+            // Check if element exists
+            selectedWorkoutHeaderElement.textContent =
+              "Select a workout to view details"; // Reset header text
+          }
+          exerciseSelect.innerHTML =
+            '<option value="" disabled selected>Select workout letter first...</option>';
+          workoutDetailsListDiv.innerHTML = ""; // Clear the list area too, as no workout is selected
+          loadingIndicator.style.display = "none";
+          document.getElementById("updateBaseBtn").disabled = true;
+          return;
+        }
 
-    // Add form submit listener
-    logForm.addEventListener("submit", handleFormSubmit);
-    console.log(
-      "Script execution reached end. Attempting to attach listener."
-    );
+        // Update the header text based on the user's selection
+        if (selectedWorkoutHeaderElement) {
+          // Check if element exists
+          selectedWorkoutHeaderElement.textContent = `Workout ${selectedLetter.toUpperCase()} Details:`; // Set dynamic header
+        }
 
-    if (logForm) {
-      // Check if the form element was actually found
-      console.log("Attaching submit listener to logForm..."); // <<< ADD
-      logForm.addEventListener("submit", handleFormSubmit);
-      console.log("Submit listener attached to logForm."); // <<< ADD
-    } else {
-      console.error(
-        "CRITICAL: Could not find element with id='logForm'. Submit listener NOT attached."
-      ); // <<< ADD Error log
-    }
-
-    /**
-     * Populates the dropdown with options from 0 to the specified range.
-     * @param {string} id - The ID of the dropdown element.
-     * @param {number} range - The maximum value for the dropdown options.
-     */
-    function populateDropdown(id, range) {
-      const dropdown = document.getElementById(id);
-      for (let i = 0; i <= range; i++) {
-        const option = document.createElement("option");
-        option.value = i;
-        option.textContent = i;
-        dropdown.appendChild(option);
+        google.script.run
+          .withSuccessHandler(handleWorkoutDataSuccess)
+          .withFailureHandler(handleLoadFailure)
+          .getWorkoutDetails(selectedLetter);
       }
-    }
 
-    // Populate dropdowns on page load
-    document.addEventListener("DOMContentLoaded", () => {
-      populateDropdown("setsPerformed", 5);
-      populateDropdown("repsPerformed", 25);
-      populateDropdown("rpe", 10);
-    });
-  </script>
-</body>
+      // Populate display AND dropdown on successful fetch
+      function handleWorkoutDataSuccess(workoutData) {
+        // workoutData is expected to be an array of objects:
+        // [{ name: "Ex1", sets: 2, reps: 5, weight: 100 }, { ... }]
+        appState.currentWorkoutDetails = []; // Reset
+        exerciseSelect.innerHTML = "";
+        workoutDetailsListDiv.innerHTML = "";
 
+        if (
+          workoutData &&
+          Array.isArray(workoutData) &&
+          workoutData.length > 0
+        ) {
+          appState.currentWorkoutDetails = workoutData; // Store the fetched data
+
+          exerciseSelect.add(new Option("Select exercise...", "", true, true));
+          let displayHtml = "<ul>";
+          workoutData.forEach((exercise) => {
+            // Basic safety check for properties
+            let name = exercise.name || "[No Name]";
+            let sets = exercise.sets !== undefined ? exercise.sets : "-";
+            let reps = exercise.reps !== undefined ? exercise.reps : "-";
+            let weight = exercise.weight !== undefined ? exercise.weight : "-";
+
+            let escapedName = name
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;");
+            exerciseSelect.add(new Option(escapedName, escapedName));
+            displayHtml += `<li>${escapedName}: ${sets} sets x ${reps} reps @ ${weight} lbs</li>`;
+          });
+          displayHtml += "</ul>";
+          workoutDetailsListDiv.innerHTML = displayHtml;
+          exerciseSelect.disabled = false;
+        } else {
+          console.warn(
+            "handleWorkoutDataSuccess: Received no data or invalid data format."
+          ); // <<< ADD Warning
+          document.getElementById("updateBaseBtn").disabled = true;
+          exerciseSelect.innerHTML =
+            '<option value="" disabled selected>No exercises found</option>';
+          workoutDetailsListDiv.innerHTML =
+            "<p><i>No exercises found for this workout letter.</i></p>";
+        }
+        loadingIndicator.style.display = "none";
+      }
+
+      // Handle failure during loading
+      function handleLoadFailure(error) {
+        const selectedWorkoutHeaderElement = document.getElementById(
+          "selectedWorkoutHeader"
+        );
+        if (selectedWorkoutHeaderElement) {
+          selectedWorkoutHeaderElement.textContent = "Error loading workout"; // Update header on error
+        }
+
+        exerciseSelect.innerHTML =
+          '<option value="" disabled selected>Error loading</option>';
+        workoutDetailsListDiv.innerHTML = `<p><i>Error loading workout details. Check console (F12).</i></p>`;
+        loadingIndicator.style.display = "none";
+        statusDiv.textContent = "Error loading workout data: " + error.message;
+        document.getElementById("updateBaseBtn").disabled = true;
+        console.error("handleLoadFailure: Function finished.");
+      }
+
+      // Function to handle form submission (remains the same)
+      function handleFormSubmit(event) {
+        event.preventDefault();
+        statusDiv.textContent = "Submitting...";
+
+        const formData = {
+          workoutLetter: workoutLetterSelect.value,
+          exerciseName: exerciseSelect.value,
+          setsPerformed: document.getElementById("setsPerformed").value,
+          repsPerformed: document.getElementById("repsPerformed").value,
+          weightUsed: document.getElementById("weightUsed").value,
+          rpe: document.getElementById("rpe").value,
+        };
+        google.script.run
+          .withSuccessHandler(handleSubmitSuccess)
+          .withFailureHandler(handleSubmitFailure)
+          .processLogForm(formData);
+      }
+
+      // Success handler needs to potentially refresh the displayed workout
+      // if progression changed the values for the currently selected workout
+      function handleSubmitSuccess(result) {
+        // Use result.message to display the success text
+        if (result && result.message) {
+          statusDiv.textContent = result.message;
+        } else {
+          console.warn(
+            "handleSubmitSuccess: Received result object did not contain expected message property."
+          );
+          statusDiv.textContent = "Exercise logged (message unclear).";
+        }
+
+        // Add logged data to our session log array using result.loggedData
+        if (result && result.loggedData) {
+          appState.sessionLog.push(result.loggedData);
+
+          updateSessionLogDisplay();
+        } else {
+          console.warn(
+            "handleSubmitSuccess: result.loggedData was missing or undefined in server response."
+          );
+        }
+
+        logForm.reset();
+
+        // Reload workout data to show potential progression updates in display/prefill
+        if (workoutLetterSelect.value) {
+        } else {
+          exerciseSelect.innerHTML =
+            '<option value="" disabled selected>Select workout letter first...</option>';
+          exerciseSelect.disabled = true;
+        }
+
+        setTimeout(() => {
+          statusDiv.textContent = "";
+        }, 5000); // Clear status later
+      }
+
+      // Failure handler remains similar
+      function handleSubmitFailure(error) {
+        statusDiv.textContent = "Error: " + error.message;
+      }
+
+      // Add form submit listener
+      logForm.addEventListener("submit", handleFormSubmit);
+
+      if (logForm) {
+        logForm.addEventListener("submit", handleFormSubmit);
+      } else {
+        console.error(
+          "CRITICAL: Could not find element with id='logForm'. Submit listener NOT attached."
+        );
+      }
+
+      /**
+       * Populates the dropdown with options from 0 to the specified range.
+       * @param {string} id - The ID of the dropdown element.
+       * @param {number} range - The maximum value for the dropdown options.
+       */
+      function populateDropdown(id, range) {
+        const dropdown = document.getElementById(id);
+        for (let i = 0; i <= range; i++) {
+          const option = document.createElement("option");
+          option.value = i;
+          option.textContent = i;
+          dropdown.appendChild(option);
+        }
+      }
+
+      function showBaseWeightUpdatePrompt() {
+        const selectedExerciseName = exerciseSelect.value; // exerciseSelect is a global const
+        const dialog = document.getElementById("baseWeightUpdateDialog");
+        const dialogStatus = document.getElementById("updateDialogStatus");
+
+        if (!dialog || !dialogStatus) {
+          console.error(
+            "showBaseWeightUpdatePrompt: Critical error - Dialog or DialogStatus element not found in HTML."
+          );
+          return;
+        }
+        dialogStatus.textContent = ""; // Clear previous dialog errors
+
+        if (!selectedExerciseName) {
+          statusDiv.textContent = "Please select an exercise first."; // Uses global statusDiv
+          setTimeout(() => {
+            statusDiv.textContent = "";
+          }, 3000);
+          return;
+        }
+
+        // *** Access currentWorkoutDetails VIA appState object ***
+        const exerciseData = appState.currentWorkoutDetails.find(
+          (ex) => ex.name === selectedExerciseName
+        ); 
+
+        if (
+          exerciseData &&
+          exerciseData.baseWeight !== undefined &&
+          exerciseData.baseWeight !== "N/A"
+        ) {
+          document.getElementById("updateExerciseName").textContent =
+            selectedExerciseName;
+          document.getElementById("currentBaseWeightDisplay").textContent =
+            exerciseData.baseWeight;
+          document.getElementById("newBaseWeightInput").value = ""; // Clear previous input
+          document.getElementById("exerciseNameToUpdate").value =
+            selectedExerciseName; // Store name for saving
+
+          dialog.style.display = "block"; // This is what shows the dialog
+        } else {
+          console.error(
+            "showBaseWeightUpdatePrompt: Could not find exercise data or valid base weight for",
+            selectedExerciseName,
+            ". Current appState.currentWorkoutDetails were:",
+            appState.currentWorkoutDetails
+          ); 
+          statusDiv.textContent = `Could not retrieve current base weight for ${selectedExerciseName}. Ensure it's loaded and sheet data is correct.`;
+          setTimeout(() => {
+            statusDiv.textContent = "";
+          }, 5000);
+        }
+      }
+
+      function handleBaseWeightCancel() {
+        document.getElementById("baseWeightUpdateDialog").style.display =
+          "none"; // Hide dialog
+      }
+
+      function handleBaseWeightSave() {
+        const exerciseName = document.getElementById(
+          "exerciseNameToUpdate"
+        ).value;
+        const newBaseWeightInput =
+          document.getElementById("newBaseWeightInput");
+        const newBaseWeight = parseFloat(newBaseWeightInput.value);
+        const dialogStatus = document.getElementById("updateDialogStatus");
+
+        dialogStatus.textContent = ""; // Clear previous errors
+
+        if (isNaN(newBaseWeight) || newBaseWeight < 0) {
+          dialogStatus.textContent =
+            "Please enter a valid non-negative number for the new base weight.";
+          return;
+        }
+
+        statusDiv.textContent = `Updating base weight for ${exerciseName}...`; // Show main status
+        document.getElementById("baseWeightUpdateDialog").style.display =
+          "none"; // Hide dialog
+
+        google.script.run
+          .withSuccessHandler(handleBaseWeightUpdateSuccess)
+          .withFailureHandler(handleBaseWeightUpdateFailure)
+          .updateCycleBaseWeight(exerciseName, newBaseWeight); // Call NEW server function
+      }
+
+      // Handlers for the server response
+      function handleBaseWeightUpdateSuccess(message) {
+        statusDiv.textContent = message || "Base weight updated successfully!";
+        // Refresh the main workout display to show potential changes
+        loadAndDisplayWorkout(); // Reload workout details after successful update
+        setTimeout(() => {
+          statusDiv.textContent = "";
+        }, 5000);
+      }
+
+      function handleBaseWeightUpdateFailure(error) {
+        console.error("handleBaseWeightUpdateFailure:", error);
+        statusDiv.textContent = `Error updating base weight: ${error.message}`;
+        // Don't clear error immediately
+      }
+
+      // Populate dropdowns on page load
+      document.addEventListener("DOMContentLoaded", () => {
+        populateDropdown("setsPerformed", 5);
+        populateDropdown("repsPerformed", 25);
+        populateDropdown("rpe", 10);
+      });
+    </script>
+  </body>
 </html>
